@@ -1,0 +1,646 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  AZ1:
+    Type: String
+    Default: "us-east-1a"
+  KeyPair:
+    Type: String
+    Default: "fgt-kp"
+  CIDRForInstanceAccess:
+    Type: String
+Resources:
+  CustAVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - CustomerAVPC
+  AppSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref CustAVPC
+      CidrBlock: 10.10.0.0/16
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - AppSubnet1
+  CustBVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - CustomerBVPC
+  AppSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref CustBVPC
+      CidrBlock: 10.20.0.0/16
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - AppSubnet2
+  SecVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.90.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - SecurityVPC
+  SecPubSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref SecVPC
+      CidrBlock: 10.90.0.0/18
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'Security Public'
+  SecPrivSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref SecVPC
+      CidrBlock: 10.90.64.0/18
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'Security Private'
+  SecTGWSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref SecVPC
+      CidrBlock: 10.90.128.0/18
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'Security TGW'
+  SecGWLBEeSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref SecVPC
+      CidrBlock: 10.90.192.0/18
+      AvailabilityZone: !Ref AZ1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'Security GWLBe'
+  SSMEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref SecVPC
+      SubnetIds:
+        - !Ref SecPrivSubnet
+      PrivateDnsEnabled: true
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssm'
+  EC2MessEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref SecVPC
+      SubnetIds:
+        - !Ref SecPrivSubnet
+      PrivateDnsEnabled: true
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ec2messages'
+  SSMMessagesEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref SecVPC
+      SubnetIds:
+        - !Ref SecPrivSubnet
+      PrivateDnsEnabled: true
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssmmessages'
+  CustAIG:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Join 
+        - '-'
+        - - !Ref 'AWS::StackName'
+          - 'CustAIG'
+  CustAIGAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref CustAIG
+      VpcId: !Ref CustAVPC
+  CustBIG:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Join 
+        - '-'
+        - - !Ref 'AWS::StackName'
+          - 'CustBIG'
+  CustBIGAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref CustBIG
+      VpcId: !Ref CustBVPC
+  SecIG:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Join 
+        - '-'
+        - - !Ref 'AWS::StackName'
+          - 'SecIG'
+  SecIGAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref SecIG
+      VpcId: !Ref SecVPC
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join
+        - "-"
+        - - !Ref AWS::StackName
+          - InstanceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+              - eks:DescribeCluster
+              - eks:ListClusters
+              - inspector:DescribeFindings
+              - inspector:ListFindings
+              - s3:GetObject
+            Resource: "*"
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join
+        - "-"
+        - - !Ref AWS::StackName
+          - LambdaRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+              - ec2:DescribeImages
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeTransitGatewayVpcAttachments
+              - ec2:DescribeVpcEndpointServiceConfigurations
+              - ec2:DescribeVpcEndpointServicePermissions
+              - ec2:DescribeVpcEndpointServices
+              - ec2:ModifyTransitGatewayVpcAttachment
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - s3:PutObject"
+            Resource: "*"
+  ImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import logging
+          import json
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          ec2 = boto3.client('ec2', region_name='us-east-1')
+          def handler(event, context):
+              print(event)
+              if event['RequestType'] == 'Create':
+                  logger.info('<-- event received: {}'.format(json.dumps(event)))
+              else:
+                  responseData = {'msg':'200'}
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+                  return None
+              try:
+                  response = ec2.describe_images(
+                      Filters=[{'Name': 'name', 'Values': [event['ResourceProperties']['LicenseType']]}],
+                      Owners=['679593333241', '464423754048', '211372476111', '345084742485', '874634375141', '939706979954', '769304176199'],
+                  )
+              except Exception as error:
+                  logger.error('<-- !!Exception: {}'.format(error))
+                  responseData = {'msg': 'error'}
+                  cfnresponse.send(event, context, cnfresponse.FAILED, responseData)
+              if response['ResponseMetadata']['HTTPStatusCode'] == 200 and response['Images'] != []:
+                  ami_dict = {}
+                  ami_list = []
+                  for entry in response['Images']:
+                      key = entry['CreationDate']
+                      ami_dict[key] = entry['ImageId']
+                  ami_list = sorted(ami_dict, reverse = True)
+                  logger.info('--> found latest AMI: {}, {}'.format(ami_dict[ami_list[0]], ami_list[0]))
+                  responseData = {'ami': ami_dict[ami_list[0]]}
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              else:
+                  logger.error('!!--> Unable to find AMI in response! {}'.format(response))
+                  responseData = {'msg':'error'}
+                  cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 120
+      Handler: index.handler
+      Runtime: python3.7
+      MemorySize: 128     
+  RunImageFunction:
+    Type: Custom::ImageFunction
+    Properties:
+      ServiceToken: !GetAtt ImageFunction.Arn
+      LicenseType: "FortiGate-VM64-AWSONDEMAND *(7.2.*)*"
+  FGTEni0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: port1
+      GroupSet: 
+      - !Ref FortiGateSecGrp
+      SourceDestCheck: false
+      SubnetId: !Ref SecPubSubnet
+      Tags:
+      - Key: Name
+        Value: !Join
+        - ""
+        - - !Ref AWS::StackName
+          - "-FGTEni0"
+      - Key: Interface
+        Value: etho
+  FGTEni1:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: port2
+      GroupSet: 
+      - !Ref FortiGateSecGrp
+      SourceDestCheck: false
+      SubnetId: !Ref SecPrivSubnet
+      Tags:
+      - Key: Name
+        Value: !Join
+        - ""
+        - - !Ref AWS::StackName
+          - "-FGTEni1"
+  FortiGateSecGrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref SecVPC
+      GroupDescription: FortiGate Instances security group
+      SecurityGroupIngress:
+        - Description: Allow remote access to FGT
+          IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref CIDRForInstanceAccess
+        - Description: Allow local VPC access to FGT
+          IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !GetAtt SecVPC.CidrBlock
+  FGTEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !GetAtt RunImageFunction.ami
+      InstanceType: c5.large
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref FGTEni0
+          DeviceIndex: 0
+        - NetworkInterfaceId: !Ref FGTEni1
+          DeviceIndex: 1
+  FGTEip:
+    Type: AWS::EC2::EIP
+    DependsOn: SecIGAttach
+  FGTEipAssoc:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      NetworkInterfaceId: !Ref FGTEni0
+      AllocationId: !GetAtt FGTEip.AllocationId
+  GWLBLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: GWLB
+      Type: gateway
+      Subnets:
+        - !Ref SecPrivSubnet
+  TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: TestTG
+      Port: 6081
+      Protocol: GENEVE
+      VpcId: !Ref SecVPC
+      HealthCheckPort: 541
+      HealthCheckProtocol: TCP
+      TargetType: instance
+      Targets:
+        - Id: !Ref FGTEC2
+          Port: 6081 
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref GWLBLoadBalancer
+  GWLBEPSvc:
+    Type: AWS::EC2::VPCEndpointService
+    Properties:
+      AcceptanceRequired: false
+      GatewayLoadBalancerArns:
+        - !Ref GWLBLoadBalancer
+  GWLBep:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: FGTEC2
+    Properties:
+      VpcId: !Ref SecVPC
+      VpcEndpointType: GatewayLoadBalancer
+      ServiceName: !Sub
+        - "com.amazonaws.vpce.${AWS::Region}.${VPCSvc}"
+        - { VPCSvc: !Ref GWLBEPSvc }
+      SubnetIds:
+        - !Ref SecGWLBEeSubnet
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      AmazonSideAsn: 64512
+      AutoAcceptSharedAttachments: "enable"
+      DefaultRouteTableAssociation: "disable"
+      DefaultRouteTablePropagation: "disable"
+      DnsSupport: "enable"
+      VpnEcmpSupport: "enable"
+      Tags:
+      - Key: Name
+        Value: !Join
+        - '-'
+        - - !Ref AWS::StackName
+          - TGW
+  AppSN1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CustAVPC
+  AppSN2RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CustBVPC
+  AppSN1RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AppSN1RT
+      SubnetId: !Ref AppSubnet1
+  AppSN2RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AppSN2RT
+      SubnetId: !Ref AppSubnet2
+  SecTGRTbl:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SecVPC
+  SecPubRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SecVPC
+  SecPrivRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SecVPC
+  SecTGRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecTGRTbl
+      SubnetId: !Ref SecTGWSubnet
+  SecRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecPubRT
+      SubnetId: !Ref SecPubSubnet
+  SecPrivRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecPrivRT
+      SubnetId: !Ref SecPrivSubnet
+  SecTGRte1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: !GetAtt CustAVPC.CidrBlock
+      VpcEndpointId: !Ref GWLBep
+      RouteTableId: !Ref SecTGRTbl
+  SecTGRte2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: !GetAtt CustBVPC.CidrBlock
+      VpcEndpointId: !Ref GWLBep
+      RouteTableId: !Ref SecTGRTbl
+  SecPubIGRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref SecIG
+      RouteTableId: !Ref SecPubRT
+  SecPrivRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NetworkInterfaceId: !Ref FGTEni1
+      RouteTableId: !Ref SecPrivRT
+  SecEpSNRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SecVPC
+  SecEPRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecEpSNRT
+      SubnetId: !Ref SecGWLBEeSubnet
+  CustATGAttach:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref CustAVPC
+      SubnetIds:
+        - !Ref AppSubnet1
+  CustBTGAttach:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref CustBVPC
+      SubnetIds:
+        - !Ref AppSubnet2
+  SECTGAttach:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref SecVPC
+      SubnetIds:
+        - !Ref SecTGWSubnet
+  AppSN1RouteIG:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CustAIG
+      RouteTableId: !Ref AppSN1RT
+  AppSN2RouteIG:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CustBIG
+      RouteTableId: !Ref AppSN2RT
+  AppSN1RouteTG:
+    Type: AWS::EC2::Route
+    DependsOn: CustATGAttach
+    Properties:
+      DestinationCidrBlock: !GetAtt CustBVPC.CidrBlock
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref AppSN1RT
+  AppSN2RouteTG:
+    Type: AWS::EC2::Route
+    DependsOn: CustBTGAttach
+    Properties:
+      DestinationCidrBlock: !GetAtt CustAVPC.CidrBlock
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref AppSN2RT
+  EPSNRouteTGCustA:
+    Type: AWS::EC2::Route
+    DependsOn: SECTGAttach 
+    Properties:
+      DestinationCidrBlock: !GetAtt CustAVPC.CidrBlock
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref SecEpSNRT
+  EPSNRouteTGCustB:
+    Type: AWS::EC2::Route
+    DependsOn: SECTGAttach
+    Properties:
+      DestinationCidrBlock: !GetAtt CustBVPC.CidrBlock
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref SecEpSNRT
+  TGRTSecTG:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+  TGRTCustA:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+  TGRTCustB: 
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+  TGRTAttSecTG:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref SECTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTSecTG
+  TGRTAttCustA:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref CustATGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustA
+  TGRTAttCustB:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref CustBTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustB
+  TGRouteCustAtoCustB:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt CustBVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref SECTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustA
+  TGRouteCustAtoSec:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt SecVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref SECTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustA
+  TGRouteCustBtoSec:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt SecVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref SECTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustB
+  TGRouteCustBtoCustA:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt CustAVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref SECTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTCustB
+  TGRouteSectoCustA:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt CustAVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref CustATGAttach
+      TransitGatewayRouteTableId: !Ref TGRTSecTG
+  TGRouteSectoCustB:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: !GetAtt CustBVPC.CidrBlock
+      TransitGatewayAttachmentId: !Ref CustBTGAttach
+      TransitGatewayRouteTableId: !Ref TGRTSecTG
+
+Outputs:
+  FGTip:
+    Description: FortiGate IP for admin access.
+    Value: !GetAtt FGTEip.PublicIp
