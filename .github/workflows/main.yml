@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - testbranch
+  pull_request:
+    branches:
+      - main
 jobs:
   Explore-GitHub-Actions:
     runs-on: self-hosted
@@ -23,3 +26,12 @@ jobs:
         run: |
           cfn-lint ${{ github.workspace }}/*.yml
       - run: echo "🍏 This job's status is ${{ job.status }}."
+  FortiDevSec-Run:
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - run: |
+          env | grep -E "GITHUB_ACTIONS|GITHUB_RUN_NUMBER|GITHUB_REF_NAME|GITHUB_SHA" > /tmp/env
+          docker pull registry.fortidevsec.forticloud.com/fdevsec_sast:latest
+          docker run --rm --env-file /tmp/env --mount type=bind,source=$PWD,target=/scan registry.fortidevsec.forticloud.com/fdevsec_sast:latest
