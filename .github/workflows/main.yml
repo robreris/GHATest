@@ -16,4 +16,7 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
+      - name: Run linter
+        run: |
+          cfn-lint ${{ github.workspace }}/*.yml
       - run: echo "🍏 This job's status is ${{ job.status }}."
